@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="style.css">
+    <title>Точка комфорта</title>
+</head>
+<body>
+
+    <section id="welcome-section" class="screen">
+        <div class="logo">
+            <h1>ТОЧКА КОМФОРТА</h1>
+            <div class="divider"></div>
+            <p class="tagline">Пространство, где рождаются идеи</p>
+        </div>
+        <div class="info-card">
+            <h2>О нашем офисе</h2>
+            <p>Добро пожаловать в современный коворкинг Сургута. У нас вы найдете идеальное место для работы и встреч на любом из 8 этажей нашего бизнес-центра.</p>
+            <div class="contact-info">
+                <p>📍 г. Сургут, ул. Ленина, д. 5, БЦ «Точка роста»</p>
+                <p>🕒 Режим работы: ежедневно с 08:00 до 21:00</p>
+            </div>
+            <button onclick="showAuth()" class="main-cta">Начать работу</button>
+        </div>
+    </section>
+
+    <div id="auth-modal" class="modal hidden">
+        <div class="modal-content">
+            <div id="login-box">
+                <h2>Вход</h2>
+                <input type="email" id="login-email" placeholder="Email">
+                <input type="password" id="login-pass" placeholder="Пароль">
+                <button onclick="login()" class="main-cta">Войти</button>
+                <p>Нет аккаунта? <a href="#" onclick="toggleAuth(true)">Регистрация</a></p>
+            </div>
+            <div id="reg-box" class="hidden">
+                <h2>Регистрация</h2>
+                <input type="text" id="reg-lastname" placeholder="Фамилия">
+                <input type="text" id="reg-firstname" placeholder="Имя">
+                <input type="tel" id="reg-phone" placeholder="Телефон">
+                <input type="email" id="reg-email" placeholder="Email">
+                <input type="password" id="reg-pass" placeholder="Пароль">
+                <button onclick="register()" class="main-cta">Создать аккаунт</button>
+                <p>Уже есть аккаунт? <a href="#" onclick="toggleAuth(false)">Войти</a></p>
+            </div>
+        </div>
+    </div>
+
+    <div id="app-section" class="container hidden">
+        <header class="app-header">
+            <button onclick="logout()" class="back-btn">Выйти из аккаунта</button>
+            <h3>Личный кабинет: <span id="user-display"></span></h3>
+        </header>
+
+        <section class="reservations">
+            <h3>Ваши активные бронирования</h3>
+            <div id="res-list">
+                <p class="empty-msg">Загрузка данных...</p>
+            </div>
+        </section>
+
+        <div class="separator-line"></div>
+        <h2 style="text-align: center;">Карта переговорных комнат</h2>
+        <div id="office-map"></div>
+
+        <section id="booking-form-container" class="booking-box hidden">
+            <h3>Оформление брони: <span id="target-room-name"></span></h3>
+            <form id="res-form">
+                <div class="input-rows-container">
+                    <div class="input-group">
+                        <label>Дата посещения</label>
+                        <input type="date" id="res-date" required>
+                    </div>
+                    <div class="input-group">
+                        <label>Время начала</label>
+                        <input type="time" id="res-start" min="08:00" max="21:00" required>
+                    </div>
+                    <div class="input-group">
+                        <label>Время окончания</label>
+                        <input type="time" id="res-end" min="08:00" max="21:00" required>
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="confirm-btn">Подтвердить бронь</button>
+                    <button type="button" class="cancel-btn" onclick="closeBooking()">Отмена</button>
+                </div>
+            </form>
+        </section>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
