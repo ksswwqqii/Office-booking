@@ -149,27 +149,33 @@
     function closeBooking() { document.getElementById('booking-form-container').classList.add('hidden'); }
 
     document.getElementById('res-form').onsubmit = async (e) => {
-        e.preventDefault();
-        const user = auth.currentUser;
-        if (!user) return;
-
-        const booking = {
-            user: user.email,
-            room: currentRoom.room,
-            floor: currentRoom.floor,
-            date: document.getElementById('res-date').value,
-            time: document.getElementById('res-start').value + " - " + document.getElementById('res-end').value,
-            timestamp: firebase.database.ServerValue.TIMESTAMP
-        };
-        
-        try {
-            await db.ref('bookings').push(booking);
-            alert("Забронировано!");
-            closeBooking();
-        } catch (err) {
-            alert("Ошибка базы: " + err.message);
-        }
+    e.preventDefault();
+    const user = auth.currentUser;
+    
+    // Данные брони
+    const bookingData = {
+        user: user ? user.email : "Аноним",
+        room: currentRoom.room,
+        floor: currentRoom.floor,
+        date: document.getElementById('res-date').value,
+        time: document.getElementById('res-start').value + " - " + document.getElementById('res-end').value,
+        timestamp: Date.now()
     };
+
+    console.log("Отправка данных...", bookingData);
+
+    try {
+        // Записываем в папку 'bookings' с уникальным ID
+        const newRef = db.ref('bookings').push();
+        await newRef.set(bookingData);
+        
+        alert("Ура! Забронировано успешно!");
+        closeBooking();
+    } catch (err) {
+        console.error("Ошибка при записи:", err);
+        alert("Ошибка базы данных: " + err.message);
+    }
+};
 
     function loadBookings() {
         db.ref('bookings').on('value', (snapshot) => {
