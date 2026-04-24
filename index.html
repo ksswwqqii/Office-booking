@@ -1,11 +1,14 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="style.css">
-    <title>Точка комфорта — Система бронирования</title>
+    <title>Точка комфорта — Firebase Edition</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 </head>
 <body>
 
@@ -17,11 +20,7 @@
         </div>
         <div class="info-card">
             <h2>О коворкинге</h2>
-            <p>Современное рабочее пространство в центре Сургута. 8 этажей, 40 оборудованных зон и полная тишина для ваших идей.</p>
-            <div class="contact-info">
-                <p>📍 ул. Ленина, д. 5, БЦ «Точка роста»</p>
-                <p>🕒 08:00 — 21:00</p>
-            </div>
+            <p>Современное рабочее пространство в Сургуте. Теперь на Firebase!</p>
             <button onclick="showAuth()" class="main-cta">Забронировать место</button>
         </div>
     </section>
@@ -29,21 +28,11 @@
     <div id="auth-modal" class="modal hidden">
         <div class="modal-content">
             <div id="login-box">
-                <h2>Вход</h2>
-                <input type="email" id="login-email" placeholder="Email">
-                <input type="password" id="login-pass" placeholder="Пароль">
-                <button onclick="login()" class="main-cta">Войти</button>
-                <p>Впервые у нас? <a href="#" onclick="toggleAuth(true)">Создать аккаунт</a></p>
-            </div>
-            <div id="reg-box" class="hidden">
-                <h2>Регистрация</h2>
-                <input type="text" id="reg-lastname" placeholder="Фамилия">
-                <input type="text" id="reg-firstname" placeholder="Имя">
-                <input type="tel" id="reg-phone" placeholder="Телефон">
-                <input type="email" id="reg-email" placeholder="Email">
-                <input type="password" id="reg-pass" placeholder="Пароль">
-                <button onclick="register()" class="main-cta">Зарегистрироваться</button>
-                <p>Уже есть аккаунт? <a href="#" onclick="toggleAuth(false)">Войти</a></p>
+                <h2>Вход / Регистрация</h2>
+                <p style="font-size: 0.8em; color: #666; margin-bottom: 10px;">Введите почту и пароль. Если аккаунта нет, он создастся автоматически.</p>
+                <input type="email" id="auth-email" placeholder="Email">
+                <input type="password" id="auth-pass" placeholder="Пароль">
+                <button onclick="handleAuth()" class="main-cta">Продолжить</button>
             </div>
         </div>
     </div>
@@ -57,7 +46,7 @@
         <section class="reservations">
             <h3>Ваши активные бронирования</h3>
             <div id="res-list">
-                <p class="empty-msg">У вас пока нет активных броней</p>
+                <p class="empty-msg">Загрузка ваших броней...</p>
             </div>
         </section>
 
@@ -69,18 +58,9 @@
             <h3>Бронирование: <span id="target-room-name"></span></h3>
             <form id="res-form">
                 <div class="input-rows-container">
-                    <div class="input-group">
-                        <label>Дата</label>
-                        <input type="date" id="res-date" required>
-                    </div>
-                    <div class="input-group">
-                        <label>Начало</label>
-                        <input type="time" id="res-start" min="08:00" max="21:00" required>
-                    </div>
-                    <div class="input-group">
-                        <label>Конец</label>
-                        <input type="time" id="res-end" min="08:00" max="21:00" required>
-                    </div>
+                    <div class="input-group"><label>Дата</label><input type="date" id="res-date" required></div>
+                    <div class="input-group"><label>Начало</label><input type="time" id="res-start" required></div>
+                    <div class="input-group"><label>Конец</label><input type="time" id="res-end" required></div>
                 </div>
                 <div class="form-actions">
                     <button type="submit" class="confirm-btn">Подтвердить</button>
@@ -89,9 +69,125 @@
             </form>
         </section>
     </div>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-<script src="script.js"></script>
+<script>
+    // Твой конфиг
+    const firebaseConfig = {
+        apiKey: "AIzaSyCmriUVqmnQ_p2UwD5ft2LgT6ydMYjTQHo",
+        authDomain: "office-room-reservation-system.firebaseapp.com",
+        databaseURL: "https://office-room-reservation-system-default-rtdb.firebaseio.com",
+        projectId: "office-room-reservation-system",
+        storageBucket: "office-room-reservation-system.firebasestorage.app",
+        messagingSenderId: "1084319495167",
+        appId: "1:1084319495167:web:d05c5a2046a85b78dcedca"
+    };
+
+    // Инициализация
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.database();
+
+    // Следим за состоянием входа
+    auth.onAuthStateChanged(user => {
+        if (user) {
+            showApp(user.email);
+        } else {
+            document.getElementById('app-section').classList.add('hidden');
+            document.getElementById('welcome-section').classList.remove('hidden');
+        }
+    });
+
+    function showAuth() { document.getElementById('auth-modal').classList.remove('hidden'); }
+
+    async function handleAuth() {
+        const email = document.getElementById('auth-email').value;
+        const pass = document.getElementById('auth-pass').value;
+        try {
+            // Пытаемся войти, если не вышло — регистрируем
+            await auth.signInWithEmailAndPassword(email, pass).catch(() => {
+                return auth.createUserWithEmailAndPassword(email, pass);
+            });
+            document.getElementById('auth-modal').classList.add('hidden');
+        } catch (e) { alert("Ошибка: " + e.message); }
+    }
+
+    function showApp(email) {
+        document.getElementById('welcome-section').classList.add('hidden');
+        document.getElementById('app-section').classList.remove('hidden');
+        document.getElementById('user-display').innerText = email;
+        initMap();
+        loadBookings();
+    }
+
+    function logout() { auth.signOut(); location.reload(); }
+
+    function initMap() {
+        const map = document.getElementById('office-map');
+        map.innerHTML = "";
+        for (let f = 1; f <= 3; f++) { // Сделаем 3 этажа для теста
+            const row = document.createElement('div');
+            row.className = 'floor-row';
+            row.innerHTML = `<h4>${f} ЭТАЖ</h4>`;
+            ["Переговорная А", "Переговорная Б"].forEach(r => {
+                const btn = document.createElement('button');
+                btn.innerText = r;
+                btn.onclick = () => openBooking(r, f);
+                row.appendChild(btn);
+            });
+            map.appendChild(row);
+        }
+    }
+
+    let currentRoom = {};
+    function openBooking(room, floor) {
+        currentRoom = { room, floor };
+        document.getElementById('target-room-name').innerText = room + " (" + floor + " эт.)";
+        document.getElementById('booking-form-container').classList.remove('hidden');
+    }
+
+    function closeBooking() { document.getElementById('booking-form-container').classList.add('hidden'); }
+
+    document.getElementById('res-form').onsubmit = async (e) => {
+        e.preventDefault();
+        const user = auth.currentUser;
+        const booking = {
+            user: user.email,
+            room: currentRoom.room,
+            floor: currentRoom.floor,
+            date: document.getElementById('res-date').value,
+            time: document.getElementById('res-start').value + " - " + document.getElementById('res-end').value
+        };
+        await db.ref('bookings').push(booking);
+        alert("Забронировано!");
+        closeBooking();
+    };
+
+    function loadBookings() {
+        db.ref('bookings').on('value', (snapshot) => {
+            const list = document.getElementById('res-list');
+            const data = snapshot.val();
+            if (!data) {
+                list.innerHTML = "<p>Бронирований пока нет</p>";
+                return;
+            }
+            list.innerHTML = Object.values(data).map(b => `
+                <div class="booking-item">
+                    <b>${b.room}</b> (${b.floor} эт.) <br>
+                    ${b.date} | ${b.time} <br>
+                    <small>${b.user}</small>
+                </div>
+            `).join('');
+        });
+    }
+</script>
+
+<style>
+    /* Мини-фикс для красоты, если стили не подгрузятся */
+    .hidden { display: none !important; }
+    .booking-item { background: #f9f4ef; border: 1px solid #d2b48c; padding: 10px; margin: 5px 0; border-radius: 8px; }
+    .floor-row { margin-bottom: 20px; padding: 10px; border-bottom: 1px solid #eee; }
+    .floor-row button { margin: 5px; padding: 10px; cursor: pointer; background: #4B3621; color: white; border: none; border-radius: 5px; }
+</style>
 
 </body>
 </html>
