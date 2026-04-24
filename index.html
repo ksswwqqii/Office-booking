@@ -71,7 +71,6 @@
     </div>
 
 <script>
-    // Твой конфиг
     const firebaseConfig = {
         apiKey: "AIzaSyCmriUVqmnQ_p2UwD5ft2LgT6ydMYjTQHo",
         authDomain: "office-room-reservation-system.firebaseapp.com",
@@ -79,15 +78,14 @@
         projectId: "office-room-reservation-system",
         storageBucket: "office-room-reservation-system.firebasestorage.app",
         messagingSenderId: "1084319495167",
-        appId: "1:1084319495167:web:d05c5a2046a85b78dcedca"
+        appId: "1:1084319495167:web:d05c5a2046a85b78dcedca",
+        measurementId: "G-6DFM1NLXDP"
     };
 
-    // Инициализация
     firebase.initializeApp(firebaseConfig);
     const auth = firebase.auth();
     const db = firebase.database();
 
-    // Следим за состоянием входа
     auth.onAuthStateChanged(user => {
         if (user) {
             showApp(user.email);
@@ -102,13 +100,16 @@
     async function handleAuth() {
         const email = document.getElementById('auth-email').value;
         const pass = document.getElementById('auth-pass').value;
+        if (!email || !pass) { alert("Заполни все поля!"); return; }
+
         try {
-            // Пытаемся войти, если не вышло — регистрируем
             await auth.signInWithEmailAndPassword(email, pass).catch(() => {
                 return auth.createUserWithEmailAndPassword(email, pass);
             });
             document.getElementById('auth-modal').classList.add('hidden');
-        } catch (e) { alert("Ошибка: " + e.message); }
+        } catch (e) { 
+            alert("Ошибка: " + e.message); 
+        }
     }
 
     function showApp(email) {
@@ -119,12 +120,12 @@
         loadBookings();
     }
 
-    function logout() { auth.signOut(); location.reload(); }
+    function logout() { auth.signOut(); }
 
     function initMap() {
         const map = document.getElementById('office-map');
         map.innerHTML = "";
-        for (let f = 1; f <= 3; f++) { // Сделаем 3 этажа для теста
+        for (let f = 1; f <= 3; f++) {
             const row = document.createElement('div');
             row.className = 'floor-row';
             row.innerHTML = `<h4>${f} ЭТАЖ</h4>`;
@@ -150,16 +151,24 @@
     document.getElementById('res-form').onsubmit = async (e) => {
         e.preventDefault();
         const user = auth.currentUser;
+        if (!user) return;
+
         const booking = {
             user: user.email,
             room: currentRoom.room,
             floor: currentRoom.floor,
             date: document.getElementById('res-date').value,
-            time: document.getElementById('res-start').value + " - " + document.getElementById('res-end').value
+            time: document.getElementById('res-start').value + " - " + document.getElementById('res-end').value,
+            timestamp: firebase.database.ServerValue.TIMESTAMP
         };
-        await db.ref('bookings').push(booking);
-        alert("Забронировано!");
-        closeBooking();
+        
+        try {
+            await db.ref('bookings').push(booking);
+            alert("Забронировано!");
+            closeBooking();
+        } catch (err) {
+            alert("Ошибка базы: " + err.message);
+        }
     };
 
     function loadBookings() {
@@ -170,23 +179,26 @@
                 list.innerHTML = "<p>Бронирований пока нет</p>";
                 return;
             }
-            list.innerHTML = Object.values(data).map(b => `
-                <div class="booking-item">
-                    <b>${b.room}</b> (${b.floor} эт.) <br>
-                    ${b.date} | ${b.time} <br>
-                    <small>${b.user}</small>
-                </div>
-            `).join('');
+            list.innerHTML = Object.values(data)
+                .filter(b => b.user === auth.currentUser.email)
+                .map(b => `
+                    <div class="booking-item">
+                        <b>${b.room}</b> (${b.floor} эт.) <br>
+                        ${b.date} | ${b.time}
+                    </div>
+                `).join('');
         });
     }
 </script>
 
 <style>
-    /* Мини-фикс для красоты, если стили не подгрузятся */
+    /* Базовые стили на случай, если CSS всё равно не подгрузится */
     .hidden { display: none !important; }
-    .booking-item { background: #f9f4ef; border: 1px solid #d2b48c; padding: 10px; margin: 5px 0; border-radius: 8px; }
+    .booking-item { background: #f9f4ef; border: 1px solid #d2b48c; padding: 10px; margin: 5px 0; border-radius: 8px; color: #4B3621; font-family: sans-serif; }
     .floor-row { margin-bottom: 20px; padding: 10px; border-bottom: 1px solid #eee; }
     .floor-row button { margin: 5px; padding: 10px; cursor: pointer; background: #4B3621; color: white; border: none; border-radius: 5px; }
+    .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+    .modal-content { background: white; padding: 30px; border-radius: 15px; text-align: center; font-family: sans-serif; }
 </style>
 
 </body>
