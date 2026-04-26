@@ -97,20 +97,29 @@
 
     function showAuth() { document.getElementById('auth-modal').classList.remove('hidden'); }
 
-    async function handleAuth() {
-        const email = document.getElementById('auth-email').value;
-        const pass = document.getElementById('auth-pass').value;
-        if (!email || !pass) { alert("Заполни все поля!"); return; }
+async function handleAuth() {
+    const email = document.getElementById('auth-email').value.trim();
+    const pass = document.getElementById('auth-pass').value;
+    if (!email || !pass) { alert("Заполни все поля!"); return; }
 
-        try {
-            await auth.signInWithEmailAndPassword(email, pass).catch(() => {
-                return auth.createUserWithEmailAndPassword(email, pass);
-            });
-            document.getElementById('auth-modal').classList.add('hidden');
-        } catch (e) { 
-            alert("Ошибка: " + e.message); 
+    try {
+        // Пробуем войти
+        await auth.signInWithEmailAndPassword(email, pass);
+        document.getElementById('auth-modal').classList.add('hidden');
+    } catch (e) {
+        // Если пользователя нет — регистрируем
+        if (e.code === 'auth/user-not-found') {
+            try {
+                await auth.createUserWithEmailAndPassword(email, pass);
+                document.getElementById('auth-modal').classList.add('hidden');
+            } catch (regErr) {
+                alert("Ошибка регистрации: " + regErr.message);
+            }
+        } else {
+            alert("Ошибка входа: " + e.message);
         }
     }
+}
 
     function showApp(email) {
         document.getElementById('welcome-section').classList.add('hidden');
