@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="style.css">
-    <title>Точка комфорта — Firebase Edition</title>
+    <title>Точка комфорта — Система бронирования</title>
     
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
@@ -29,10 +29,13 @@
         <div class="modal-content">
             <div id="login-box">
                 <h2>Вход / Регистрация</h2>
-                <p style="font-size: 0.8em; color: #666; margin-bottom: 10px;">Введите почту и пароль. Если аккаунта нет, он создастся автоматически.</p>
+                <p style="font-size: 0.8em; color: #666; margin-bottom: 10px;">
+                    Введите почту и пароль. Если аккаунта нет, он создастся автоматически.
+                </p>
                 <input type="email" id="auth-email" placeholder="Email">
                 <input type="password" id="auth-pass" placeholder="Пароль">
                 <button onclick="handleAuth()" class="main-cta">Продолжить</button>
+                <button onclick="closeAuth()" style="background:none; border:none; color:gray; cursor:pointer; margin-top:10px;">Отмена</button>
             </div>
         </div>
     </div>
@@ -71,6 +74,7 @@
     </div>
 
 <script>
+    // Твой конфиг Firebase
     const firebaseConfig = {
         apiKey: "AIzaSyCmriUVqmnQ_p2UwD5ft2LgT6ydMYjTQHo",
         authDomain: "office-room-reservation-system.firebaseapp.com",
@@ -78,14 +82,15 @@
         projectId: "office-room-reservation-system",
         storageBucket: "office-room-reservation-system.firebasestorage.app",
         messagingSenderId: "1084319495167",
-        appId: "1:1084319495167:web:d05c5a2046a85b78dcedca",
-        measurementId: "G-6DFM1NLXDP"
+        appId: "1:1084319495167:web:d05c5a2046a85b78dcedca"
     };
 
+    // Инициализация
     firebase.initializeApp(firebaseConfig);
     const auth = firebase.auth();
     const db = firebase.database();
 
+    // Слушатель состояния пользователя
     auth.onAuthStateChanged(user => {
         if (user) {
             showApp(user.email);
@@ -96,30 +101,30 @@
     });
 
     function showAuth() { document.getElementById('auth-modal').classList.remove('hidden'); }
+    function closeAuth() { document.getElementById('auth-modal').classList.add('hidden'); }
 
-async function handleAuth() {
-    const email = document.getElementById('auth-email').value.trim();
-    const pass = document.getElementById('auth-pass').value;
-    if (!email || !pass) { alert("Заполни все поля!"); return; }
+    // Умная авторизация: вход или регистрация
+    async function handleAuth() {
+        const email = document.getElementById('auth-email').value.trim();
+        const pass = document.getElementById('auth-pass').value;
+        if (!email || !pass) { alert("Заполни все поля!"); return; }
 
-    try {
-        // Пробуем войти
-        await auth.signInWithEmailAndPassword(email, pass);
-        document.getElementById('auth-modal').classList.add('hidden');
-    } catch (e) {
-        // Если пользователя нет — регистрируем
-        if (e.code === 'auth/user-not-found') {
-            try {
-                await auth.createUserWithEmailAndPassword(email, pass);
-                document.getElementById('auth-modal').classList.add('hidden');
-            } catch (regErr) {
-                alert("Ошибка регистрации: " + regErr.message);
+        try {
+            await auth.signInWithEmailAndPassword(email, pass);
+            closeAuth();
+        } catch (e) {
+            if (e.code === 'auth/user-not-found') {
+                try {
+                    await auth.createUserWithEmailAndPassword(email, pass);
+                    closeAuth();
+                } catch (regErr) {
+                    alert("Ошибка регистрации: " + regErr.message);
+                }
+            } else {
+                alert("Ошибка: " + e.message);
             }
-        } else {
-            alert("Ошибка входа: " + e.message);
         }
     }
-}
 
     function showApp(email) {
         document.getElementById('welcome-section').classList.add('hidden');
@@ -131,15 +136,20 @@ async function handleAuth() {
 
     function logout() { auth.signOut(); }
 
+    // Генерация карты (3 этажа по 2 комнаты)
     function initMap() {
         const map = document.getElementById('office-map');
         map.innerHTML = "";
         for (let f = 1; f <= 3; f++) {
             const row = document.createElement('div');
             row.className = 'floor-row';
-            row.innerHTML = `<h4>${f} ЭТАЖ</h4>`;
+            row.setAttribute('data-floor', f + " ЭТАЖ"); 
+            row.innerHTML = `<h4 style="width:100%">${f} ЭТАЖ</h4>`;
+            
             ["Переговорная А", "Переговорная Б"].forEach(r => {
                 const btn = document.createElement('button');
+                btn.className = 'select-btn';
+                btn.style.margin = "5px";
                 btn.innerText = r;
                 btn.onclick = () => openBooking(r, f);
                 row.appendChild(btn);
@@ -153,53 +163,63 @@ async function handleAuth() {
         currentRoom = { room, floor };
         document.getElementById('target-room-name').innerText = room + " (" + floor + " эт.)";
         document.getElementById('booking-form-container').classList.remove('hidden');
+        document.getElementById('booking-form-container').scrollIntoView({ behavior: 'smooth' });
     }
 
     function closeBooking() { document.getElementById('booking-form-container').classList.add('hidden'); }
 
+    // Сохранение в базу
     document.getElementById('res-form').onsubmit = async (e) => {
-    e.preventDefault();
-    const user = auth.currentUser;
-    
-    // Данные брони
-    const bookingData = {
-        user: user ? user.email : "Аноним",
-        room: currentRoom.room,
-        floor: currentRoom.floor,
-        date: document.getElementById('res-date').value,
-        time: document.getElementById('res-start').value + " - " + document.getElementById('res-end').value,
-        timestamp: Date.now()
+        e.preventDefault();
+        const user = auth.currentUser;
+        if (!user) return;
+
+        const bookingData = {
+            user: user.email,
+            room: currentRoom.room,
+            floor: currentRoom.floor,
+            date: document.getElementById('res-date').value,
+            time: document.getElementById('res-start').value + " - " + document.getElementById('res-end').value,
+            timestamp: Date.now()
+        };
+
+        try {
+            const newRef = db.ref('bookings').push();
+            await newRef.set(bookingData);
+            alert("Забронировано успешно!");
+            closeBooking();
+        } catch (err) {
+            alert("Ошибка базы: " + err.message);
+        }
     };
 
-    console.log("Отправка данных...", bookingData);
-
-    try {
-        // Записываем в папку 'bookings' с уникальным ID
-        const newRef = db.ref('bookings').push();
-        await newRef.set(bookingData);
-        
-        alert("Ура! Забронировано успешно!");
-        closeBooking();
-    } catch (err) {
-        console.error("Ошибка при записи:", err);
-        alert("Ошибка базы данных: " + err.message);
-    }
-};
-
+    // Загрузка броней в реальном времени
     function loadBookings() {
+        const user = auth.currentUser;
+        if (!user) return;
+
         db.ref('bookings').on('value', (snapshot) => {
             const list = document.getElementById('res-list');
             const data = snapshot.val();
+            
             if (!data) {
-                list.innerHTML = "<p>Бронирований пока нет</p>";
+                list.innerHTML = "<p class='empty-msg'>У вас пока нет броней</p>";
                 return;
             }
-            list.innerHTML = Object.values(data)
-                .filter(b => b.user === auth.currentUser.email)
+
+            const myBookings = Object.values(data).filter(b => b.user === user.email);
+            
+            if (myBookings.length === 0) {
+                list.innerHTML = "<p class='empty-msg'>У вас пока нет броней</p>";
+                return;
+            }
+
+            list.innerHTML = myBookings
+                .sort((a, b) => b.timestamp - a.timestamp)
                 .map(b => `
                     <div class="booking-item">
-                        <b>${b.room}</b> (${b.floor} эт.) <br>
-                        ${b.date} | ${b.time}
+                        <div><b>${b.room}</b> (${b.floor} эт.)</div>
+                        <div style="font-size:0.9em; color:#666;">${b.date} | ${b.time}</div>
                     </div>
                 `).join('');
         });
@@ -207,14 +227,18 @@ async function handleAuth() {
 </script>
 
 <style>
-    /* Базовые стили на случай, если CSS всё равно не подгрузится */
     .hidden { display: none !important; }
-    .booking-item { background: #f9f4ef; border: 1px solid #d2b48c; padding: 10px; margin: 5px 0; border-radius: 8px; color: #4B3621; font-family: sans-serif; }
-    .floor-row { margin-bottom: 20px; padding: 10px; border-bottom: 1px solid #eee; }
-    .floor-row button { margin: 5px; padding: 10px; cursor: pointer; background: #4B3621; color: white; border: none; border-radius: 5px; }
-    .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; }
-    .modal-content { background: white; padding: 30px; border-radius: 15px; text-align: center; font-family: sans-serif; }
-</style>
-
-</body>
-</html>
+    .floor-row { 
+        display: flex; 
+        flex-wrap: wrap; 
+        justify-content: center; 
+        background: rgba(255,255,255,0.5); 
+        padding: 20px; 
+        margin-bottom: 20px; 
+        border-radius: 15px;
+    }
+    .select-btn {
+        background: #4B3621;
+        color: white;
+        border: none;
+        padding: 10px
