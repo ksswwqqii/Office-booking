@@ -73,8 +73,12 @@
         </section>
     </div>
 
-<script>
-    // Твой конфиг Firebase
+<script type="module">
+    // Импортируем современные модули Firebase
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+    import { getDatabase, ref, push, set, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
     const firebaseConfig = {
         apiKey: "AIzaSyCmriUVqmnQ_p2UwD5ft2LgT6ydMYjTQHo",
         authDomain: "office-room-reservation-system.firebaseapp.com",
@@ -86,89 +90,49 @@
     };
 
     // Инициализация
-    firebase.initializeApp(firebaseConfig);
-    const auth = firebase.auth();
-    const db = firebase.database();
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getDatabase(app);
 
-    // Слушатель состояния пользователя
-    auth.onAuthStateChanged(user => {
+    // Привязываем функции к окну (чтобы onclick в HTML работал)
+    window.showAuth = () => document.getElementById('auth-modal').classList.remove('hidden');
+    window.closeAuth = () => document.getElementById('auth-modal').classList.add('hidden');
+    window.logout = () => signOut(auth);
+
+    window.handleAuth = async () => {
+        const email = document.getElementById('auth-email').value.trim();
+        const pass = document.getElementById('auth-pass').value;
+        try {
+            await signInWithEmailAndPassword(auth, email, pass);
+        } catch (e) {
+            try {
+                await createUserWithEmailAndPassword(auth, email, pass);
+            } catch (err) { alert("Ошибка: " + err.message); }
+        }
+    };
+
+    onAuthStateChanged(auth, (user) => {
         if (user) {
-            showApp(user.email);
+            document.getElementById('welcome-section').classList.add('hidden');
+            document.getElementById('auth-modal').classList.add('hidden');
+            document.getElementById('app-section').classList.remove('hidden');
+            document.getElementById('user-display').innerText = user.email;
+            loadBookings(user.email);
+            initMap();
         } else {
             document.getElementById('app-section').classList.add('hidden');
             document.getElementById('welcome-section').classList.remove('hidden');
         }
     });
 
-    function showAuth() { document.getElementById('auth-modal').classList.remove('hidden'); }
-    function closeAuth() { document.getElementById('auth-modal').classList.add('hidden'); }
-
-    // Умная авторизация: вход или регистрация
-    async function handleAuth() {
-        const email = document.getElementById('auth-email').value.trim();
-        const pass = document.getElementById('auth-pass').value;
-        if (!email || !pass) { alert("Заполни все поля!"); return; }
-
-        try {
-            await auth.signInWithEmailAndPassword(email, pass);
-            closeAuth();
-        } catch (e) {
-            if (e.code === 'auth/user-not-found') {
-                try {
-                    await auth.createUserWithEmailAndPassword(email, pass);
-                    closeAuth();
-                } catch (regErr) {
-                    alert("Ошибка регистрации: " + regErr.message);
-                }
-            } else {
-                alert("Ошибка: " + e.message);
-            }
-        }
-    }
-
-    function showApp(email) {
-        document.getElementById('welcome-section').classList.add('hidden');
-        document.getElementById('app-section').classList.remove('hidden');
-        document.getElementById('user-display').innerText = email;
-        initMap();
-        loadBookings();
-    }
-
-    function logout() { auth.signOut(); }
-
-    // Генерация карты (3 этажа по 2 комнаты)
-    function initMap() {
-        const map = document.getElementById('office-map');
-        map.innerHTML = "";
-        for (let f = 1; f <= 3; f++) {
-            const row = document.createElement('div');
-            row.className = 'floor-row';
-            row.setAttribute('data-floor', f + " ЭТАЖ"); 
-            row.innerHTML = `<h4 style="width:100%">${f} ЭТАЖ</h4>`;
-            
-            ["Переговорная А", "Переговорная Б"].forEach(r => {
-                const btn = document.createElement('button');
-                btn.className = 'select-btn';
-                btn.style.margin = "5px";
-                btn.innerText = r;
-                btn.onclick = () => openBooking(r, f);
-                row.appendChild(btn);
-            });
-            map.appendChild(row);
-        }
-    }
-
     let currentRoom = {};
-    function openBooking(room, floor) {
+    window.openBooking = (room, floor) => {
         currentRoom = { room, floor };
-        document.getElementById('target-room-name').innerText = room + " (" + floor + " эт.)";
+        document.getElementById('target-room-name').innerText = `${room} (${floor} эт.)`;
         document.getElementById('booking-form-container').classList.remove('hidden');
-        document.getElementById('booking-form-container').scrollIntoView({ behavior: 'smooth' });
-    }
+    };
+    window.closeBooking = () => document.getElementById('booking-form-container').classList.add('hidden');
 
-    function closeBooking() { document.getElementById('booking-form-container').classList.add('hidden'); }
-
-    // Сохранение в базу
     document.getElementById('res-form').onsubmit = async (e) => {
         e.preventDefault();
         const user = auth.currentUser;
@@ -184,45 +148,47 @@
         };
 
         try {
-            const newRef = db.ref('bookings').push();
-            await newRef.set(bookingData);
+            const bookingsRef = ref(db, 'bookings');
+            const newBookingRef = push(bookingsRef);
+            await set(newBookingRef, bookingData);
             alert("Забронировано успешно!");
             closeBooking();
-        } catch (err) {
-            alert("Ошибка базы: " + err.message);
-        }
+        } catch (err) { alert("Ошибка базы: " + err.message); }
     };
 
-    // Загрузка броней в реальном времени
-    function loadBookings() {
-        const user = auth.currentUser;
-        if (!user) return;
-
-        db.ref('bookings').on('value', (snapshot) => {
-            const list = document.getElementById('res-list');
+    function loadBookings(userEmail) {
+        const bookingsRef = ref(db, 'bookings');
+        onValue(bookingsRef, (snapshot) => {
             const data = snapshot.val();
-            
-            if (!data) {
-                list.innerHTML = "<p class='empty-msg'>У вас пока нет броней</p>";
-                return;
-            }
+            const list = document.getElementById('res-list');
+            if (!data) { list.innerHTML = "Броней нет"; return; }
 
-            const myBookings = Object.values(data).filter(b => b.user === user.email);
-            
-            if (myBookings.length === 0) {
-                list.innerHTML = "<p class='empty-msg'>У вас пока нет броней</p>";
-                return;
-            }
-
-            list.innerHTML = myBookings
-                .sort((a, b) => b.timestamp - a.timestamp)
-                .map(b => `
-                    <div class="booking-item">
-                        <div><b>${b.room}</b> (${b.floor} эт.)</div>
-                        <div style="font-size:0.9em; color:#666;">${b.date} | ${b.time}</div>
-                    </div>
-                `).join('');
+            const myBookings = Object.values(data).filter(b => b.user === userEmail);
+            list.innerHTML = myBookings.map(b => `
+                <div class="booking-item">
+                    <b>${b.room}</b> (${b.floor} эт.)<br>
+                    ${b.date} | ${b.time}
+                </div>
+            `).join('');
         });
+    }
+
+    function initMap() {
+        const map = document.getElementById('office-map');
+        map.innerHTML = "";
+        for (let f = 1; f <= 2; f++) {
+            const row = document.createElement('div');
+            row.className = 'floor-row';
+            row.innerHTML = `<h4>${f} ЭТАЖ</h4>`;
+            ["Комната 1", "Комната 2", "Комната 3"].forEach(r => {
+                const btn = document.createElement('button');
+                btn.className = 'select-btn';
+                btn.innerText = r;
+                btn.onclick = () => window.openBooking(r, f);
+                row.appendChild(btn);
+            });
+            map.appendChild(row);
+        }
     }
 </script>
 
