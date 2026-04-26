@@ -88,7 +88,7 @@
     const auth = getAuth(app);
     const db = getDatabase(app);
 
-    // Привязываем функции к window, чтобы onclick в HTML их видел
+    // Делаем функции доступными для кнопок в HTML
     window.showAuth = () => document.getElementById('auth-modal').classList.remove('hidden');
     window.closeAuth = () => document.getElementById('auth-modal').classList.add('hidden');
     window.logout = () => signOut(auth);
@@ -97,7 +97,7 @@
     window.handleAuth = async () => {
         const email = document.getElementById('auth-email').value.trim();
         const pass = document.getElementById('auth-pass').value;
-        if(!email || !pass) return alert("Заполните поля!");
+        if (!email || !pass) return alert("Введите данные!");
 
         try {
             await signInWithEmailAndPassword(auth, email, pass);
@@ -109,20 +109,16 @@
     };
 
     onAuthStateChanged(auth, (user) => {
-        const welcome = document.getElementById('welcome-section');
-        const appSec = document.getElementById('app-section');
-        const modal = document.getElementById('auth-modal');
-
         if (user) {
-            welcome.classList.add('hidden');
-            modal.classList.add('hidden');
-            appSec.classList.remove('hidden');
+            document.getElementById('welcome-section').classList.add('hidden');
+            document.getElementById('auth-modal').classList.add('hidden');
+            document.getElementById('app-section').classList.remove('hidden');
             document.getElementById('user-display').innerText = user.email;
             initMap();
             loadBookings(user.email);
         } else {
-            appSec.classList.add('hidden');
-            welcome.classList.remove('hidden');
+            document.getElementById('app-section').classList.add('hidden');
+            document.getElementById('welcome-section').classList.remove('hidden');
         }
     });
 
@@ -133,41 +129,35 @@
         document.getElementById('booking-form-container').classList.remove('hidden');
     };
 
-    // Слушатель формы бронирования (исправлено!)
-    document.addEventListener('DOMContentLoaded', () => {
-        const form = document.getElementById('res-form');
-        if(form) {
-            form.onsubmit = async (e) => {
-                e.preventDefault();
-                const user = auth.currentUser;
-                if (!user) return alert("Нужно войти в систему!");
+    // Исправленный обработчик формы
+    document.addEventListener('submit', async (e) => {
+        if (e.target.id === 'res-form') {
+            e.preventDefault();
+            const user = auth.currentUser;
+            if (!user) return alert("Нужно войти!");
 
-                const bookingData = {
-                    user: user.email,
-                    room: currentRoom.room,
-                    floor: currentRoom.floor,
-                    date: document.getElementById('res-date').value,
-                    time: document.getElementById('res-start').value + " - " + document.getElementById('res-end').value,
-                    timestamp: Date.now()
-                };
-
-                try {
-                    const newRef = push(ref(db, 'bookings'));
-                    await set(newRef, bookingData);
-                    alert("Успешно забронировано!");
-                    window.closeBooking();
-                } catch (err) {
-                    alert("Ошибка базы данных: " + err.message);
-                }
+            const bookingData = {
+                user: user.email,
+                room: currentRoom.room,
+                floor: currentRoom.floor,
+                date: document.getElementById('res-date').value,
+                time: `${document.getElementById('res-start').value} - ${document.getElementById('res-end').value}`,
+                timestamp: Date.now()
             };
+
+            try {
+                await set(push(ref(db, 'bookings')), bookingData);
+                alert("Забронировано!");
+                window.closeBooking();
+            } catch (err) { alert("Ошибка записи: " + err.message); }
         }
     });
 
     function loadBookings(email) {
         onValue(ref(db, 'bookings'), (snap) => {
-            const data = snap.val();
             const list = document.getElementById('res-list');
-            if(!data) { list.innerHTML = "Броней нет"; return; }
+            const data = snap.val();
+            if (!data) { list.innerHTML = "Броней нет"; return; }
             const my = Object.values(data).filter(b => b.user === email);
             list.innerHTML = my.map(b => `<div class="booking-item"><b>${b.room}</b> (${b.floor} эт.)<br>${b.date} | ${b.time}</div>`).join('');
         });
@@ -183,7 +173,6 @@
             [1, 2, 3, 4, 5].forEach(num => {
                 const btn = document.createElement('button');
                 btn.className = 'select-btn';
-                btn.style.margin = "5px";
                 btn.innerText = "Комната " + num;
                 btn.onclick = () => window.openBooking("Комната " + num, f);
                 row.appendChild(btn);
