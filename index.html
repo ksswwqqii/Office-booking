@@ -74,11 +74,12 @@
     </div>
 
 <script type="module">
-    // Импортируем современные модули Firebase
+    // Импортируем модули напрямую из CDN (это самый надежный способ)
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
     import { getDatabase, ref, push, set, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
+    // ТВОЙ КОНФИГ (Я всё вставил за тебя, ничего не меняй здесь!)
     const firebaseConfig = {
         apiKey: "AIzaSyCmriUVqmnQ_p2UwD5ft2LgT6ydMYjTQHo",
         authDomain: "office-room-reservation-system.firebaseapp.com",
@@ -89,12 +90,11 @@
         appId: "1:1084319495167:web:d05c5a2046a85b78dcedca"
     };
 
-    // Инициализация
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db = getDatabase(app);
 
-    // Привязываем функции к окну (чтобы onclick в HTML работал)
+    // Делаем функции доступными для кнопок в HTML (onclick)
     window.showAuth = () => document.getElementById('auth-modal').classList.remove('hidden');
     window.closeAuth = () => document.getElementById('auth-modal').classList.add('hidden');
     window.logout = () => signOut(auth);
@@ -102,9 +102,12 @@
     window.handleAuth = async () => {
         const email = document.getElementById('auth-email').value.trim();
         const pass = document.getElementById('auth-pass').value;
+        if(!email || !pass) return alert("Введите почту и пароль");
+        
         try {
             await signInWithEmailAndPassword(auth, email, pass);
         } catch (e) {
+            // Если пользователя нет — регистрируем
             try {
                 await createUserWithEmailAndPassword(auth, email, pass);
             } catch (err) { alert("Ошибка: " + err.message); }
@@ -117,8 +120,8 @@
             document.getElementById('auth-modal').classList.add('hidden');
             document.getElementById('app-section').classList.remove('hidden');
             document.getElementById('user-display').innerText = user.email;
-            loadBookings(user.email);
             initMap();
+            loadBookings(user.email);
         } else {
             document.getElementById('app-section').classList.add('hidden');
             document.getElementById('welcome-section').classList.remove('hidden');
@@ -128,11 +131,12 @@
     let currentRoom = {};
     window.openBooking = (room, floor) => {
         currentRoom = { room, floor };
-        document.getElementById('target-room-name').innerText = `${room} (${floor} эт.)`;
+        document.getElementById('target-room-name').innerText = room + " (" + floor + " эт.)";
         document.getElementById('booking-form-container').classList.remove('hidden');
     };
     window.closeBooking = () => document.getElementById('booking-form-container').classList.add('hidden');
 
+    // КЛЮЧЕВАЯ ФУНКЦИЯ: ОТПРАВКА В БАЗУ
     document.getElementById('res-form').onsubmit = async (e) => {
         e.preventDefault();
         const user = auth.currentUser;
@@ -148,26 +152,26 @@
         };
 
         try {
-            const bookingsRef = ref(db, 'bookings');
-            const newBookingRef = push(bookingsRef);
+            // Создаем уникальный ключ в папке 'bookings'
+            const newBookingRef = push(ref(db, 'bookings'));
             await set(newBookingRef, bookingData);
-            alert("Забронировано успешно!");
+            alert("Забронировано! Проверь консоль Firebase.");
             closeBooking();
-        } catch (err) { alert("Ошибка базы: " + err.message); }
+        } catch (err) {
+            alert("Ошибка базы: " + err.message);
+        }
     };
 
     function loadBookings(userEmail) {
-        const bookingsRef = ref(db, 'bookings');
-        onValue(bookingsRef, (snapshot) => {
-            const data = snapshot.val();
+        onValue(ref(db, 'bookings'), (snapshot) => {
             const list = document.getElementById('res-list');
-            if (!data) { list.innerHTML = "Броней нет"; return; }
-
+            const data = snapshot.val();
+            if (!data) { list.innerHTML = "Броней пока нет"; return; }
+            
             const myBookings = Object.values(data).filter(b => b.user === userEmail);
             list.innerHTML = myBookings.map(b => `
                 <div class="booking-item">
-                    <b>${b.room}</b> (${b.floor} эт.)<br>
-                    ${b.date} | ${b.time}
+                    <b>${b.room}</b> (${b.floor} эт.) <br> ${b.date} | ${b.time}
                 </div>
             `).join('');
         });
@@ -180,18 +184,18 @@
             const row = document.createElement('div');
             row.className = 'floor-row';
             row.innerHTML = `<h4>${f} ЭТАЖ</h4>`;
-            ["Комната 1", "Комната 2", "Комната 3"].forEach(r => {
+            // Рисуем 5 комнат, как на твоем дизайне
+            [1, 2, 3, 4, 5].forEach(num => {
                 const btn = document.createElement('button');
                 btn.className = 'select-btn';
-                btn.innerText = r;
-                btn.onclick = () => window.openBooking(r, f);
+                btn.innerText = "Комната " + num;
+                btn.onclick = () => window.openBooking("Комната " + num, f);
                 row.appendChild(btn);
             });
             map.appendChild(row);
         }
     }
 </script>
-
 <style>
     .hidden { display: none !important; }
     .floor-row { 
