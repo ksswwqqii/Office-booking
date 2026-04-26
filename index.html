@@ -5,10 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="style.css">
     <title>Точка комфорта — Система бронирования</title>
-    
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 </head>
 <body>
 
@@ -88,43 +84,45 @@
         appId: "1:1084319495167:web:d05c5a2046a85b78dcedca"
     };
 
-    console.log("Firebase инициализация...");
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db = getDatabase(app);
 
+    // Привязываем функции к window, чтобы onclick в HTML их видел
+    window.showAuth = () => document.getElementById('auth-modal').classList.remove('hidden');
+    window.closeAuth = () => document.getElementById('auth-modal').classList.add('hidden');
+    window.logout = () => signOut(auth);
+    window.closeBooking = () => document.getElementById('booking-form-container').classList.add('hidden');
+
     window.handleAuth = async () => {
         const email = document.getElementById('auth-email').value.trim();
         const pass = document.getElementById('auth-pass').value;
-        console.log("Попытка входа для:", email);
+        if(!email || !pass) return alert("Заполните поля!");
+
         try {
             await signInWithEmailAndPassword(auth, email, pass);
-            console.log("Вход выполнен успешно");
         } catch (e) {
-            console.log("Аккаунта нет, пробуем регистрацию...");
             try {
                 await createUserWithEmailAndPassword(auth, email, pass);
-                console.log("Регистрация успешна");
-            } catch (err) { 
-                console.error("Ошибка авторизации:", err.message);
-                alert("Ошибка: " + err.message); 
-            }
+            } catch (err) { alert("Ошибка: " + err.message); }
         }
     };
 
     onAuthStateChanged(auth, (user) => {
+        const welcome = document.getElementById('welcome-section');
+        const appSec = document.getElementById('app-section');
+        const modal = document.getElementById('auth-modal');
+
         if (user) {
-            console.log("Пользователь в системе:", user.email);
-            document.getElementById('welcome-section').classList.add('hidden');
-            document.getElementById('auth-modal').classList.add('hidden');
-            document.getElementById('app-section').classList.remove('hidden');
+            welcome.classList.add('hidden');
+            modal.classList.add('hidden');
+            appSec.classList.remove('hidden');
             document.getElementById('user-display').innerText = user.email;
             initMap();
             loadBookings(user.email);
         } else {
-            console.log("Пользователь не авторизован");
-            document.getElementById('app-section').classList.add('hidden');
-            document.getElementById('welcome-section').classList.remove('hidden');
+            appSec.classList.add('hidden');
+            welcome.classList.remove('hidden');
         }
     });
 
@@ -135,32 +133,35 @@
         document.getElementById('booking-form-container').classList.remove('hidden');
     };
 
-    document.getElementById('res-form').onsubmit = async (e) => {
-        e.preventDefault();
-        console.log("Отправка брони...");
-        const user = auth.currentUser;
-        if (!user) return;
+    // Слушатель формы бронирования (исправлено!)
+    document.addEventListener('DOMContentLoaded', () => {
+        const form = document.getElementById('res-form');
+        if(form) {
+            form.onsubmit = async (e) => {
+                e.preventDefault();
+                const user = auth.currentUser;
+                if (!user) return alert("Нужно войти в систему!");
 
-        const bookingData = {
-            user: user.email,
-            room: currentRoom.room,
-            floor: currentRoom.floor,
-            date: document.getElementById('res-date').value,
-            time: document.getElementById('res-start').value + " - " + document.getElementById('res-end').value,
-            timestamp: Date.now()
-        };
+                const bookingData = {
+                    user: user.email,
+                    room: currentRoom.room,
+                    floor: currentRoom.floor,
+                    date: document.getElementById('res-date').value,
+                    time: document.getElementById('res-start').value + " - " + document.getElementById('res-end').value,
+                    timestamp: Date.now()
+                };
 
-        try {
-            const newRef = push(ref(db, 'bookings'));
-            await set(newRef, bookingData);
-            console.log("Данные успешно записаны в базу!");
-            alert("Забронировано!");
-            document.getElementById('booking-form-container').classList.add('hidden');
-        } catch (err) {
-            console.error("ОШИБКА ЗАПИСИ:", err.message);
-            alert("Ошибка базы: " + err.message);
+                try {
+                    const newRef = push(ref(db, 'bookings'));
+                    await set(newRef, bookingData);
+                    alert("Успешно забронировано!");
+                    window.closeBooking();
+                } catch (err) {
+                    alert("Ошибка базы данных: " + err.message);
+                }
+            };
         }
-    };
+    });
 
     function loadBookings(email) {
         onValue(ref(db, 'bookings'), (snap) => {
@@ -190,11 +191,6 @@
             map.appendChild(row);
         }
     }
-    
-    // Остальные функции (logout и т.д.)
-    window.showAuth = () => document.getElementById('auth-modal').classList.remove('hidden');
-    window.closeAuth = () => document.getElementById('auth-modal').classList.add('hidden');
-    window.logout = () => signOut(auth);
 </script>
 <style>
     .hidden { display: none !important; }
